@@ -48,7 +48,7 @@ class ObjectTracker:
             # correct x2 if it has become greater than width (selection ends outside the window)
             self.selection[2] = self.frame.shape[1] if self.selection[2] > self.frame.shape[1] else self.selection[2]
             # correct y2 if it has become greater than height (selection ends outside the window)
-            self.selection[3] = self.frame.shape[0] if self.selection[2] > self.frame.shape[0] else self.selection[3]
+            self.selection[3] = self.frame.shape[0] if self.selection[3] > self.frame.shape[0] else self.selection[3]
 
             self.selection_state = 3
 
@@ -67,30 +67,32 @@ class ObjectTracker:
         flag, self.frame = self.video_handle.read() #(boolean, ndarray)
         while flag:
             print(self.selection_state)
+            #As processing is to be done on HUE channel, so lets convert the frame from BGR to HSV
+            hsv_frame = cv2.cvtColor(self.frame, cv2.COLOR_BGR2HSV)
 
             if self.selection_state == 3:
                 #cv2.rectangle(self.frame, (self.selection[0], self.selection[1]), (self.selection[2], self.selection[3]), (0,127,255), 1)
-                roi = self.frame[self.selection[1]:self.selection[3], self.selection[0]:self.selection[2]]
+                roi = hsv_frame[self.selection[1]:self.selection[3], self.selection[0]:self.selection[2]]
                 cv2.imshow('ROI', roi)
-                #histogram
-                #...
+                #histogram (of HUE channel only)
+                #calcHist([images], [channels], mask, [intervals], [ranges])
+                hist_roi = cv2.calcHist([roi],[0], None, [180], [0,179])
                 self.selection_state = 4
-
 
             if self.selection_state == 4:
                 #backprojection
+                #calcBackProject([images], [channels], histogram, [ranges], scale)
+                backprojection = cv2.calcBackProject([hsv_frame],[0], hist_roi,[0,179], 1 )
+
+                cv2.imshow('BackProjection', backprojection)
                 #camshift
                 pass
 
             #render
             cv2.imshow('Object Tracker', self.frame)
-
-
-
             #delay to match the FPS
             if cv2.waitKey(int(1000/fps)) == 27: #ASCII(ESC) == 27
                 break
-
             #next frame
             flag, self.frame = self.video_handle.read()
 
