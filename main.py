@@ -1,6 +1,7 @@
 #Object Tracker
 
 import cv2
+import numpy as np
 
 class ObjectTracker:
     #A special method of the class.
@@ -77,6 +78,13 @@ class ObjectTracker:
                 #histogram (of HUE channel only)
                 #calcHist([images], [channels], mask, [intervals], [ranges])
                 hist_roi = cv2.calcHist([roi],[0], None, [180], [0,179])
+
+                #Define initial tracker window for CAMShift
+                tracker_window = [self.selection[0], self.selection[1], self.selection[2] - self.selection[0], self.selection[3] - self.selection[1]] #left(x1),top(y1),width(x2-x1),height (y2-y1)
+
+                #Set termination criteria for CAMShift to: 10 iterations or max movement of 1 pixel
+                termination_criteria = (cv2.TermCriteria_COUNT | cv2.TermCriteria_EPS, 10,1)
+
                 self.selection_state = 4
 
             if self.selection_state == 4:
@@ -84,9 +92,17 @@ class ObjectTracker:
                 #calcBackProject([images], [channels], histogram, [ranges], scale)
                 backprojection = cv2.calcBackProject([hsv_frame],[0], hist_roi,[0,179], 1 )
 
+                #Here we create a mask from the source image, by dropping out the weakly pronounced colors
+                mask = cv2.inRange(hsv_frame,np.array((0,60,30)), np.array((180, 255, 230)))
+                backprojection = backprojection & mask
+
                 cv2.imshow('BackProjection', backprojection)
-                #camshift
-                pass
+
+                #CAMShift
+                ellipse_params, tracker_window = cv2.CamShift(backprojection, tracker_window, termination_criteria)
+                #Draw an ellipse on original image
+
+                cv2.ellipse(self.frame, ellipse_params, color=(0,0,255), thickness=2)
 
             #render
             cv2.imshow('Object Tracker', self.frame)
