@@ -3,6 +3,10 @@
 import cv2
 
 class ObjectTracker:
+    #A special method of the class.
+    #It is auto invoked as object of the class is created.
+    #It initializes the object to first (initial) state.
+
     def __init__(self, src=0):
         #Capture the video source
         self.video_handle = cv2.VideoCapture(src)
@@ -13,19 +17,48 @@ class ObjectTracker:
         #A frame to initialize from the video source and process too
         self.frame = None
 
+        #A flag to indicate the selection state of the ROI
+        self.selection_state = 0
+        self.selection = []
+
     def on_mouse_event(self, event, x, y, flag, param):
         if event == cv2.EVENT_LBUTTONDOWN:
-            print('qqq ', x, y)
+            self.selection.clear() # reset the selection
+            self.selection.append(x) #x of mouse down
+            self.selection.append(y) #y of mouse down
+            self.selection_state = 1
+
         elif event == cv2.EVENT_LBUTTONUP:
-            print('www ', x, y)
+            self.selection.append(x)  # x of mouse up
+            self.selection.append(y)  # y of mouse up
+            self.selection_state = 2
+
+        if self.selection_state ==2:
+            #x,y of mouse down and x,y of mouse up are captured
+            #normalize the users rectangle forming orientation in a manner that x1,y1 are top,left and x2,y2 are bottom,right
+            if self.selection[0] > self.selection[2]:
+                self.selection[0], self.selection[2] = self.selection[2], self.selection[0]
+            if self.selection[1] > self.selection[3]:
+                self.selection[1], self.selection[3] = self.selection[3], self.selection[1]
+
+            #correct x1 if it has become negative (selection ends outside the window)
+            self.selection[0] = 0 if self.selection[0] < 0 else self.selection[0]
+            # correct y1 if it has become negative (selection ends outside the window)
+            self.selection[1] = 0 if self.selection[1] < 0 else self.selection[1]
+            # correct x2 if it has become greater than width (selection ends outside the window)
+            self.selection[2] = self.frame.shape[1] if self.selection[2] > self.frame.shape[1] else self.selection[2]
+            # correct y2 if it has become greater than height (selection ends outside the window)
+            self.selection[3] = self.frame.shape[0] if self.selection[2] > self.frame.shape[0] else self.selection[3]
+
+            self.selection_state = 3
 
     def play_and_track(self):
-        #Create a named window
+        #Create named windows
         cv2.namedWindow('Object Tracker')
+        #cv2.namedWindow('ROI')
 
         #Register with CV2 for a callback on mouse event
         cv2.setMouseCallback('Object Tracker', self.on_mouse_event )
-
 
         #know the FPS
         fps = self.video_handle.get(cv2.CAP_PROP_FPS)
@@ -33,19 +66,36 @@ class ObjectTracker:
         #read the first frame
         flag, self.frame = self.video_handle.read() #(boolean, ndarray)
         while flag:
+            print(self.selection_state)
+
+            if self.selection_state == 3:
+                #cv2.rectangle(self.frame, (self.selection[0], self.selection[1]), (self.selection[2], self.selection[3]), (0,127,255), 1)
+                roi = self.frame[self.selection[1]:self.selection[3], self.selection[0]:self.selection[2]]
+                cv2.imshow('ROI', roi)
+                #histogram
+                #...
+                self.selection_state = 4
+
+
+            if self.selection_state == 4:
+                #backprojection
+                #camshift
+                pass
+
             #render
             cv2.imshow('Object Tracker', self.frame)
 
 
+
             #delay to match the FPS
-            if cv2.waitKey(int(1000//fps)) == 27: #ASCII(ESC) == 27
+            if cv2.waitKey(int(1000/fps)) == 27: #ASCII(ESC) == 27
                 break
 
             #next frame
             flag, self.frame = self.video_handle.read()
 
-        #Destroy the window
-        cv2.destroyWindow('Object Tracker')
+        #Destroy all windows
+        cv2.destroyAllWindows()
 
     #A special method of the class
     #It gets auto invoked (by the Garbage Collector) as life of the object ends (When reference count reduces to 0 or when application ends) .
